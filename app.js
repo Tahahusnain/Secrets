@@ -19,7 +19,7 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(session({
     secret: "Our little secret.",
     resave: false,
-    saveUninitialized: false,
+    saveUninitialized: false
 }))
 
 app.use(passport.initialize())  
@@ -27,6 +27,7 @@ app.use(passport.session())
 
 mongoose.connect("mongodb://127.0.0.1:27017/userDB", {useNewUrlParser: true});
 
+//schema
 const userSchema = new mongoose.Schema({
     email: String,
     password: String,
@@ -65,12 +66,12 @@ passport.use(new GoogleStrategy({
   }
 ));
 
-
-
+//home route
 app.get("/",(req,res)=>{
     res.render('home' )
 })
 
+//google authentication route
 app.get('/auth/google',
     passport.authenticate("google",{scope: ["profile"]})
 );
@@ -83,22 +84,102 @@ app.get('/auth/google/secrets',
   });
 
 
-app.get("/login",(req,res)=>{
-    res.render('login' )
-})
 
-app.get("/register",(req,res)=>{
-    res.render('register' )
-})
+//register routes
+app.route ('/register')
+
+    .get((req,res)=>{
+        res.render('register' )
+    })
+
+    .post(async (req,res)=>{
+
+        User.register({username: req.body.username}, req.body.password, (err, user)=>{
+            if(err){
+                console.log(err);
+                res.redirect("/register")
+            }else{
+                passport.authenticate("local")(req, res , ()=>{
+                    res.redirect("/secrets")
+                })
+            }
+        })
+    })
+
+
+//login routes
+app.route ('/login')
+
+    .get((req,res)=>{
+        res.render('login' )
+    })
+
+    .post(async (req,res)=>{
+        const user = new User({
+            username: req.body.username,
+            password: req.body.password
+        })
+
+        req.login(user, (err)=>{
+            if(err){
+                console.log(err);
+            }else{
+                passport.authenticate("local")(req, res, () => {
+                    res.redirect("secrets");
+                  });
+                // res.redirect("/secrets")
+            }       
+        })
+    })
+
+
+
+//submit routes 
+app.route('submit')
+
+    .get((req,res)=>{
+        if(req.isAuthenticated()){
+            res.render("submit")
+        }else{
+            res.redirect("/login")
+        }
+    })
+
+    .post( async(req,res)=>{ // when we initiate a new login session it will save that user in request variable
+        const secretSubmitted = req.body.secret
+        console.log('req-------------------------------------',req.body,req.user);
+        console.log(req.user);
+        
+        console.log("user id ="+ req.user )
+        console.log("secret ="+ secretSubmitted)
+        
+        const foundUserById = await User.findById(req.user)
+        console.log("found user ="+ foundUserById )
+        if(!foundUserById){
+            console.log("user not found");
+        }else{
+            if(foundUserById){
+                foundUserById.secret = secretSubmitted
+                foundUserById.save()
+                res.redirect("/secrets")
+            }
+        }
+        
+        console.log(req.user.id) ;
+    })
+
+    //logout route
 app.get("/logout",(req,res)=>{
     req.logout((err)=>{
         if(err){
-            console.log(err);
+           console.log(err);
         }
         res.redirect('/')
     });
-  
+      
 })
+
+//secrets route
 app.get("/secrets",async(req, res)=>{
 
     try{
@@ -109,71 +190,7 @@ app.get("/secrets",async(req, res)=>{
     }
 })
 
-app.get("/submit",(req,res)=>{
-    if(req.isAuthenticated()){
-        res.render("submit")
-    }else{
-        res.redirect("/login")
-    }
-})
 
-app.post("/submit", async(req,res)=>{ // when we initiate a new login session it will save that user in request variable
-    const secretSubmitted = req.body.secret
-    console.log('req-------------------------------------',req.body,req.user);
-    console.log(req.user);
-    
-    console.log("user id ="+ req.user )
-    console.log("secret ="+ secretSubmitted)
-    
-    const foundUserById = await User.findById(req.user)
-    console.log("found user ="+ foundUserById )
-    if(!foundUserById){
-        console.log("user not found");
-    }else{
-        if(foundUserById){
-            foundUserById.secret = secretSubmitted
-            foundUserById.save()
-            res.redirect("/secrets")
-        }
-    }
-    
-    console.log(req.user.id) ;
-})
-
-app.post("/register",async (req,res)=>{
-
-    User.register({username: req.body.username}, req.body.password, (err, user)=>{
-        if(err){
-            console.log(err);
-            res.redirect("/register")
-        }else{
-            passport.authenticate("local")(req, res , ()=>{
-                res.redirect("/secrets")
-            })
-        }
-    })
-   
-   
-})
-
-app.post("/login",async (req,res)=>{
-    const user = new User({
-        username: req.body.username,
-        password: req.body.password
-    })
-
-    req.login(user, (err)=>{
-        if(err){
-            console.log(err);
-        }else{
-            passport.authenticate("local")(req, res, () => {
-                res.redirect("secrets");
-              });
-            // res.redirect("/secrets")
-        }
-            
-    })
-})
 
 app.listen(3000, ()=>{
     console.log("server listening on port 3000");
@@ -214,3 +231,5 @@ app.listen(3000, ()=>{
 //     }
 //     return cb (err, foundUser)
 // });
+
+// 07298c23c9e3db3e4c92ddb640fd554a
